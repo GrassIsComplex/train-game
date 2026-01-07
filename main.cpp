@@ -7,8 +7,8 @@
 
 using namespace std;
 
-const int TRACK_DIST = 120;
-const int SWITCH_DIST = 80;
+const int TRACK_DIST = 100;
+const int SWITCH_DIST = 120;
 
 int OFFSET_TRACK;
 int OFFSET_SWITCH;
@@ -20,7 +20,7 @@ enum TrackDir {
 };
 
 struct TrackSwitch {
-	TrackDir dir;
+	TrackDir dir = STRAGHT;
 	bool can_switch = true;
 };
 
@@ -40,16 +40,16 @@ class Train {
 	int track;
 	int dest_track;
 	int xpos;
-	int position;
+	float position;
 	void Draw() {
 		Color col = ColorFromHSV(360.0f/track_count*dest_track, 0.8f, 0.9f);
-		DrawRectangle(xpos,position,25,25,col);
+		DrawRectangle(xpos,(int)position,25,25,col);
 	};
 	void Update() {
-		position += 1;
+		position += 1.5f;
 		int s = (position - OFFSET_SWITCH);
 		if (s%SWITCH_DIST == 0){
-			if (tracks[track].size() >= s/SWITCH_DIST)
+			if (tracks[track].size() > s/SWITCH_DIST)
 			switch (tracks[track][s/SWITCH_DIST].dir) {
 				case LEFT:
 					track--;
@@ -62,7 +62,7 @@ class Train {
 			}
 		}
 		int pos = OFFSET_TRACK+track*TRACK_DIST;
-		if (xpos != pos) xpos += 3 * ((xpos - pos) > 0 ? -1 : 1);
+		if (xpos != pos) xpos += 2 * ((xpos - pos) > 0 ? -1 : 1);
 	};
 	Train(int tr, int dtr){
 		track = tr;
@@ -150,7 +150,7 @@ void DrawTracks(){
 					col = GREEN;
 					break;
 			}
-			DrawRectangle(OFFSET_TRACK+i*TRACK_DIST,OFFSET_SWITCH+j*SWITCH_DIST,25,25,col);
+			DrawRectangle(OFFSET_TRACK+i*TRACK_DIST,OFFSET_SWITCH+j*SWITCH_DIST,15,15,col);
 		}
 	}
 }
@@ -181,7 +181,7 @@ void Update() {
 					if (mistakes >= 3) game_over = true;
 				}
 				trains.erase(trains.begin()+i);
-				trains.push_back(Train(rand()%4, rand()%4));
+				trains.push_back(Train(rand()%track_count, rand()%track_count));
 			} else {
 				i++;
 			}
@@ -206,7 +206,7 @@ void Draw() {
 		
 		for (int i = 0; i < track_count; i++) {
 			Color col = ColorFromHSV(360.0f/track_count*i, 0.8f, 0.9f);
-			DrawRectangle(OFFSET_TRACK+i*TRACK_DIST,400,25,25,col);
+			DrawRectangle(OFFSET_TRACK+i*TRACK_DIST,GetScreenHeight()-25,25,25,col);
 		}
 		
 		DrawText(TextFormat("Score: %d", score), 20, 20, 24, BLACK);
@@ -224,8 +224,8 @@ void Draw() {
 
 int main(void)
 {
-    const int screenWidth = 800;
-    const int screenHeight = 450;
+    const int screenWidth = 1000;
+    const int screenHeight = 600;
 
     InitWindow(screenWidth, screenHeight, "Train game");
 
