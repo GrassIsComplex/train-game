@@ -1,7 +1,9 @@
 # Train Game
 
 ## Overview
+
 ty chatgpt for the readme
+
 **Train Game** is a small, keyboard-only routing game set in a simplified metro station. Trains enter the station from the top and automatically travel downward through a grid of tracks and switches. Each train has a **destination track**, and your job is to **route it correctly using track switches** before it exits the station.
 
 The challenge comes from timing and planning: switches must be set *before* trains reach them, and mistakes quickly lead to game over.
