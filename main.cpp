@@ -46,7 +46,7 @@ bool paused = false;
 bool game_over = false;
 
 const float SPEED = 2.0f;
-const float MOVE_ANGLE = 40.0f * DEG2RAD;
+const float MOVE_ANGLE = 45.0f * DEG2RAD;
 class Train {
 	public:
 	int track;
