@@ -10,6 +10,16 @@ using namespace std;
 const int TRACK_DIST = 100;
 const int SWITCH_DIST = 120;
 
+Texture train_tex;
+Texture train_right_tex;
+Texture train_left_tex;
+
+Texture track_tex;
+
+Texture switch_s_tex;
+Texture switch_l_tex;
+Texture switch_r_tex;
+
 int OFFSET_TRACK;
 int OFFSET_SWITCH;
 
@@ -35,34 +45,64 @@ int mistakes = 0;
 bool paused = false;
 bool game_over = false;
 
+const float SPEED = 2.0f;
+const float MOVE_ANGLE = 40.0f * DEG2RAD;
 class Train {
 	public:
 	int track;
 	int dest_track;
-	int xpos;
+	float xpos;
 	float position;
+	bool switching = false;
+	bool switching_dir_l = false;
+	bool switched = false;
 	void Draw() {
 		Color col = ColorFromHSV(360.0f/track_count*dest_track, 0.8f, 0.9f);
 		DrawRectangle(xpos,(int)position,25,25,col);
+		if (switching) {
+			DrawTexture(switching_dir_l ? train_left_tex : train_right_tex, xpos - train_tex.width/2, (int)position - train_tex.height/2, WHITE);
+		} else {
+			DrawTexture(train_tex, xpos - train_tex.width/2, (int)position - train_tex.height/2, WHITE);
+		}
 	};
 	void Update() {
-		position += 1.5f;
-		int s = (position - OFFSET_SWITCH);
-		if (s%SWITCH_DIST == 0){
-			if (tracks[track].size() > s/SWITCH_DIST)
-			switch (tracks[track][s/SWITCH_DIST].dir) {
+		float local = fmodf(position - OFFSET_SWITCH, SWITCH_DIST);
+		if (local < 0) local += SWITCH_DIST;
+		int switch_index = (int)floorf((position - OFFSET_SWITCH) / SWITCH_DIST);
+		
+		if (!switched &&
+		switch_index >= 0 &&
+		switch_index < tracks[track].size() &&
+		fabsf(local) < SPEED)
+		{
+			switched = true;
+			switch (tracks[track][switch_index].dir) {
 				case LEFT:
-					track--;
+					track--; 
 					break;
 				case RIGHT:
-					track++;
+					track++; 
 					break;
 				default:
 					break;
 			}
 		}
-		int pos = OFFSET_TRACK+track*TRACK_DIST;
-		if (xpos != pos) xpos += 2 * ((xpos - pos) > 0 ? -1 : 1);
+
+		int tg_x = OFFSET_TRACK+track*TRACK_DIST;
+		
+		if (abs((xpos - tg_x)) < 2.0f) xpos = tg_x;
+		
+		switching = xpos != tg_x;
+		switching_dir_l = xpos > tg_x;
+		
+		if (switching) {
+			float angle = switching_dir_l ? -MOVE_ANGLE : MOVE_ANGLE;
+			position += SPEED * cosf(angle);
+			xpos += SPEED * sinf(angle);
+		} else {
+			position += SPEED;
+			switched = false;
+		}
 	};
 	Train(int tr, int dtr){
 		track = tr;
@@ -136,21 +176,26 @@ void InitTracks(){
 
 
 void DrawTracks(){
+	int track_c = OFFSET_SWITCH / track_tex.height;
+	for (int i = 0; i < track_c; i++) {
+		for (int j = 0; j < track_count; j++) {
+			DrawTexture(track_tex, OFFSET_TRACK+i*TRACK_DIST - track_tex.width/2, j*track_tex.height, WHITE);
+		}
+	}
+	
 	for (int i = 0; i < track_count; i++) {
 		for (int j = 0; j < switches; j++) {
-			Color col = BLACK;
 			switch (tracks[i][j].dir) {
 				case STRAGHT:
-					col = BLACK;
+					DrawTexture(switch_s_tex, OFFSET_TRACK+i*TRACK_DIST - switch_s_tex.width/2, OFFSET_SWITCH+j*SWITCH_DIST-25/2, WHITE);
 					break;
 				case LEFT:
-					col = PURPLE;
+					DrawTexture(switch_l_tex, OFFSET_TRACK+i*TRACK_DIST - switch_l_tex.width + switch_s_tex.width/2, OFFSET_SWITCH+j*SWITCH_DIST-25/2, WHITE);
 					break;
 				case RIGHT:
-					col = GREEN;
+					DrawTexture(switch_r_tex, OFFSET_TRACK+i*TRACK_DIST - switch_s_tex.width/2, OFFSET_SWITCH+j*SWITCH_DIST-25/2, WHITE);
 					break;
 			}
-			DrawRectangle(OFFSET_TRACK+i*TRACK_DIST,OFFSET_SWITCH+j*SWITCH_DIST,15,15,col);
 		}
 	}
 }
@@ -206,7 +251,7 @@ void Draw() {
 		
 		for (int i = 0; i < track_count; i++) {
 			Color col = ColorFromHSV(360.0f/track_count*i, 0.8f, 0.9f);
-			DrawRectangle(OFFSET_TRACK+i*TRACK_DIST,GetScreenHeight()-25,25,25,col);
+			DrawRectangle(OFFSET_TRACK+i*TRACK_DIST - 25/2,GetScreenHeight()-25,25,25,col);
 		}
 		
 		DrawText(TextFormat("Score: %d", score), 20, 20, 24, BLACK);
@@ -233,12 +278,21 @@ int main(void)
 
 	srand(time(0));
 
+	train_tex = LoadTexture("train.png");
+	train_right_tex = LoadTexture("train-right.png");
+	train_left_tex = LoadTexture("train-left.png");
+	
+	track_tex = LoadTexture("track.png");
+	
+	switch_s_tex = LoadTexture("switch_straight.png");
+	switch_l_tex = LoadTexture("switch_left.png");
+	switch_r_tex = LoadTexture("switch_right.png");
+
 	CalculateSizeConstants();
 
 	InitTracks();
 
 	trains.push_back(Train(rand()%4, rand()%4));
-
 
     while (!WindowShouldClose())
     {
