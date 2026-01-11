@@ -22,6 +22,8 @@ Texture switch_r_tex;
 
 Texture marker_tex;
 
+Texture arrow_tex;
+
 Sound switch_sound;
 
 int OFFSET_TRACK;
@@ -134,6 +136,8 @@ class {
 	public:
 	int index_x = 0;
 	int index_y = 0;
+	float dp_x = 0;
+	float dp_y = 0;
 	void Update() {
 		int ix = 0;
 		int iy = 0;
@@ -150,6 +154,12 @@ class {
 		if (index_x < 0) index_x = track_count - 1;
 		if (index_y >= switches) index_y = 0;
 		if (index_y < 0) index_y = switches - 1;
+		
+		int tg_x = OFFSET_TRACK+index_x*TRACK_DIST;
+		dp_x += 0.6f * (tg_x - dp_x);
+		
+		int tg_y = OFFSET_SWITCH+index_y*SWITCH_DIST;
+		dp_y += 0.6f * (tg_y - dp_y);
 
 		bool s = false;
 		if (IsKeyPressed(KEY_ENTER)) {
@@ -176,7 +186,9 @@ class {
 		if (s) PlaySound(switch_sound);
 	};
 	void Draw() {
-		DrawCircle(OFFSET_TRACK+index_x*TRACK_DIST,OFFSET_SWITCH+index_y*SWITCH_DIST,12,RED);
+		float offset = sin(GetTime()*3) * 3;
+		DrawTexture(arrow_tex,   dp_x-arrow_tex.width-15-offset, dp_y-15, GRAY);
+		DrawTextureEx(arrow_tex,{dp_x+arrow_tex.width+15+offset, dp_y+arrow_tex.height-15},180.0f,1.0f,GRAY);
 	};
 
 } cursor;
@@ -226,6 +238,9 @@ void CalculateSizeConstants()
 	OFFSET_SWITCH = (GetScreenHeight() - total_switches_height) / 2;
 }
 
+void AddTrain(int track, int end_track) {
+	trains.push_back(Train(track,end_track));
+}
 
 void Update() {
 	if (IsKeyPressed(KEY_P) && !game_over) paused = !paused;
@@ -245,7 +260,7 @@ void Update() {
 					if (mistakes >= 3) game_over = true;
 				}
 				trains.erase(trains.begin()+i);
-				trains.push_back(Train(rand()%track_count, rand()%track_count));
+				AddTrain(rand()%track_count, rand()%track_count);
 			} else {
 				i++;
 			}
@@ -310,6 +325,8 @@ int main(void)
 	switch_r_tex = LoadTexture("switch_right.png");
 	
 	marker_tex = LoadTexture("marker.png");
+	
+	arrow_tex = LoadTexture("arrow.png");
 	
 	switch_sound = LoadSound("switch.wav");
 
