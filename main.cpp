@@ -20,6 +20,10 @@ Texture switch_s_tex;
 Texture switch_l_tex;
 Texture switch_r_tex;
 
+Texture marker_tex;
+
+Sound switch_sound;
+
 int OFFSET_TRACK;
 int OFFSET_SWITCH;
 
@@ -45,8 +49,8 @@ int mistakes = 0;
 bool paused = false;
 bool game_over = false;
 
-const float SPEED = 2.0f;
-const float MOVE_ANGLE = 45.0f * DEG2RAD;
+float speed = 2.0f;
+const float MOVE_ANGLE = 40.5f * DEG2RAD;
 class Train {
 	public:
 	int track;
@@ -58,14 +62,37 @@ class Train {
 	bool switched = false;
 	void Draw() {
 		Color col = ColorFromHSV(360.0f/track_count*dest_track, 0.8f, 0.9f);
-		DrawRectangle(xpos,(int)position,25,25,col);
 		if (switching) {
-			DrawTexture(switching_dir_l ? train_left_tex : train_right_tex, xpos - train_tex.width/2, (int)position - train_tex.height/2, WHITE);
+			if (switching_dir_l) {
+				DrawTexture(train_left_tex, xpos - train_left_tex.width/2 - 10, (int)position - train_tex.height/2, WHITE);
+				DrawTexturePro(marker_tex, {0, 0, (float)marker_tex.width, (float)marker_tex.height}, {xpos, position - 30, (float)marker_tex.width, (float)marker_tex.height}, {marker_tex.width/2.0f, marker_tex.height/2.0f}, 34.0f, col);
+			}
+			else {
+				DrawTexture(train_right_tex, xpos - train_right_tex.width/2 + 10, (int)position - train_tex.height/2, WHITE);
+				DrawTexturePro(marker_tex, {0, 0, (float)marker_tex.width, (float)marker_tex.height}, {xpos, position - 30, (float)marker_tex.width, (float)marker_tex.height}, {marker_tex.width/2.0f, marker_tex.height/2.0f}, -34.0f, col);
+			}
 		} else {
 			DrawTexture(train_tex, xpos - train_tex.width/2, (int)position - train_tex.height/2, WHITE);
+			DrawTexture(marker_tex, xpos - marker_tex.width/2, (int)position - 40, col);
 		}
 	};
 	void Update() {
+		int tg_x = OFFSET_TRACK+track*TRACK_DIST;
+		
+		if (abs((xpos - tg_x)) < 2.0f) xpos = tg_x;
+		
+		switching = xpos != tg_x;
+		switching_dir_l = xpos > tg_x;
+		
+		if (switching) {
+			float angle = switching_dir_l ? -MOVE_ANGLE : MOVE_ANGLE;
+			position += speed * cosf(angle);
+			xpos += speed * sinf(angle);
+		} else {
+			position += speed;
+			switched = false;
+		}
+		
 		float local = fmodf(position - OFFSET_SWITCH, SWITCH_DIST);
 		if (local < 0) local += SWITCH_DIST;
 		int switch_index = (int)floorf((position - OFFSET_SWITCH) / SWITCH_DIST);
@@ -73,9 +100,13 @@ class Train {
 		if (!switched &&
 		switch_index >= 0 &&
 		switch_index < tracks[track].size() &&
-		fabsf(local) < SPEED)
+		fabsf(local) < speed)
 		{
 			switched = true;
+			
+			position = OFFSET_SWITCH + switch_index * SWITCH_DIST;
+			xpos = OFFSET_TRACK + track * TRACK_DIST;
+			
 			switch (tracks[track][switch_index].dir) {
 				case LEFT:
 					track--; 
@@ -88,21 +119,6 @@ class Train {
 			}
 		}
 
-		int tg_x = OFFSET_TRACK+track*TRACK_DIST;
-		
-		if (abs((xpos - tg_x)) < 2.0f) xpos = tg_x;
-		
-		switching = xpos != tg_x;
-		switching_dir_l = xpos > tg_x;
-		
-		if (switching) {
-			float angle = switching_dir_l ? -MOVE_ANGLE : MOVE_ANGLE;
-			position += SPEED * cosf(angle);
-			xpos += SPEED * sinf(angle);
-		} else {
-			position += SPEED;
-			switched = false;
-		}
 	};
 	Train(int tr, int dtr){
 		track = tr;
@@ -135,9 +151,9 @@ class {
 		if (index_y >= switches) index_y = 0;
 		if (index_y < 0) index_y = switches - 1;
 
-
-
+		bool s = false;
 		if (IsKeyPressed(KEY_ENTER)) {
+			s = true;
 			TrackDir dir = tracks[index_x][index_y].dir;
 			switch (dir) {
 				case STRAGHT:
@@ -153,9 +169,11 @@ class {
 			tracks[index_x][index_y].dir = dir;
 		}
 		TrackDir &dir = tracks[index_x][index_y].dir;
-		if (IsKeyPressed(KEY_J)) if (index_x > 0) dir = LEFT;
-		if (IsKeyPressed(KEY_K)) dir = STRAGHT;
-		if (IsKeyPressed(KEY_L)) if (index_x < track_count - 1) dir = RIGHT;
+		if (IsKeyPressed(KEY_J)) if (index_x > 0) {dir = LEFT; s = true;}
+		if (IsKeyPressed(KEY_K)) {dir = STRAGHT; s = true;}
+		if (IsKeyPressed(KEY_L)) if (index_x < track_count - 1) {dir = RIGHT; s = true;}
+		
+		if (s) PlaySound(switch_sound);
 	};
 	void Draw() {
 		DrawCircle(OFFSET_TRACK+index_x*TRACK_DIST,OFFSET_SWITCH+index_y*SWITCH_DIST,12,RED);
@@ -220,6 +238,7 @@ void Update() {
 			if (t.position > GetScreenHeight() - 60) {
 				if (t.track == t.dest_track) {
 					score++;
+					if (!(score%5)) speed+= 0.25f;
 				}
 				else {
 					mistakes++; 
@@ -273,6 +292,8 @@ int main(void)
     const int screenHeight = 600;
 
     InitWindow(screenWidth, screenHeight, "Train game");
+	
+	InitAudioDevice();
 
     SetTargetFPS(60);
 
@@ -287,6 +308,10 @@ int main(void)
 	switch_s_tex = LoadTexture("switch_straight.png");
 	switch_l_tex = LoadTexture("switch_left.png");
 	switch_r_tex = LoadTexture("switch_right.png");
+	
+	marker_tex = LoadTexture("marker.png");
+	
+	switch_sound = LoadSound("switch.wav");
 
 	CalculateSizeConstants();
 
