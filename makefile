@@ -14,7 +14,7 @@ ifeq ($(OS),Windows_NT)
 		-I"C:\raylib\include" "C:\raylib\lib\libraylib.a" \
 		-lopengl32 -lgdi32 -lwinmm
 else
-	g++ $(CXXFLAGS) -fsanitize=address,undefined \
+	zig c++ $(CXXFLAGS) -fsanitize=address,undefined \
 		-D_GLIBCXX_ASSERTIONS \
 		main.cpp -o $(TG) -lraylib -lX11 -lpthread -ldl -lm
 endif

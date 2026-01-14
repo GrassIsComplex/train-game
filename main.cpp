@@ -2,6 +2,7 @@
 #include <unordered_map>
 #include <vector>
 #include <iostream>
+#include <fstream>
 #include <stdlib.h>
 #include <ctime>
 
@@ -9,6 +10,8 @@ using namespace std;
 
 const int TRACK_DIST = 100;
 const int SWITCH_DIST = 120;
+
+fstream highscore_file;
 
 Texture train_tex;
 Texture train_right_tex;
@@ -45,6 +48,7 @@ vector<vector<TrackSwitch>> tracks;
 int switches = 3;
 int track_count = 4;
 
+int highscore = 0;
 int score = 0;
 int mistakes = 0;
 
@@ -242,6 +246,35 @@ void AddTrain(int track, int end_track) {
 	trains.push_back(Train(track,end_track));
 }
 
+void WriteHighscore() {
+    highscore_file.seekp(0, ios::beg);
+	highscore_file.write((char*)(&highscore), sizeof(highscore));
+	highscore_file.flush();
+}
+
+void ReadHighscore() {
+	highscore_file.seekp(0, ios::beg);
+	highscore_file.read((char*)(&highscore), sizeof(highscore));
+}
+
+void InitGame() {
+	score = 0;
+	mistakes = 0;
+	speed = 2.0f;
+	game_over = false;
+	trains.clear();
+	trains.push_back(Train(rand()%4, rand()%4));
+	ReadHighscore();
+}
+
+void LoseGame() {
+	game_over = true;
+	if (score > highscore) {
+		highscore = score;
+		WriteHighscore();
+	}
+}
+
 void Update() {
 	if (IsKeyPressed(KEY_P) && !game_over) paused = !paused;
 	if (game_over || paused) {
@@ -257,7 +290,7 @@ void Update() {
 				}
 				else {
 					mistakes++; 
-					if (mistakes >= 3) game_over = true;
+					if (mistakes >= 3) LoseGame();
 				}
 				trains.erase(trains.begin()+i);
 				AddTrain(rand()%track_count, rand()%track_count);
@@ -289,11 +322,14 @@ void Draw() {
 		}
 		
 		DrawText(TextFormat("Score: %d", score), 20, 20, 24, BLACK);
+		DrawText(TextFormat("HighScore: %d", highscore), 20, 44, 24, BLACK);
 		for (int i = 0; i < mistakes; i++)
-			DrawText("x", 20+i*30, 46, 36, RED);
+			DrawText("x", 20+i*30, 58, 36, RED);
 
 		if (game_over) {
 			DrawText("GAME OVER", 50,180, 20, GRAY);
+			DrawText("Press 'r' to restart", 30,200, 20, GRAY);
+			if (IsKeyDown(KEY_R)) InitGame();
 		} else if (paused) {
 			DrawText("PAUSED", 50,180, 20, GRAY);
 		}
@@ -313,6 +349,18 @@ int main(void)
     SetTargetFPS(60);
 
 	srand(time(0));
+
+	highscore_file.open("highscore", ios::in | ios::out | ios::binary);
+
+	// If hs file dosent exist
+	if (!highscore_file.is_open()) {
+		highscore_file.open("highscore",ios::out | ios::binary);
+		int zero = 0;
+		highscore_file.write((char*)&zero, sizeof(zero));
+		highscore_file.close();
+		highscore_file.open("highscore",ios::in | ios::out | ios::binary);
+		highscore = 0;
+	}
 
 	train_tex = LoadTexture("train.png");
 	train_right_tex = LoadTexture("train-right.png");
@@ -334,7 +382,7 @@ int main(void)
 
 	InitTracks();
 
-	trains.push_back(Train(rand()%4, rand()%4));
+	InitGame();
 
     while (!WindowShouldClose())
     {
@@ -343,6 +391,8 @@ int main(void)
 	}
 
     CloseWindow();
+
+	highscore_file.close();
 
     return 0;
 }
