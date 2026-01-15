@@ -66,6 +66,7 @@ class Train {
 	bool switching = false;
 	bool switching_dir_l = false;
 	bool switched = false;
+	float delay = 0.0f;
 	void Draw() {
 		Color col = ColorFromHSV(360.0f/track_count*dest_track, 0.8f, 0.9f);
 		if (switching) {
@@ -83,53 +84,60 @@ class Train {
 		}
 	};
 	void Update() {
-		int tg_x = OFFSET_TRACK+track*TRACK_DIST;
-		
-		if (abs((xpos - tg_x)) < 2.0f) xpos = tg_x;
-		
-		switching = xpos != tg_x;
-		switching_dir_l = xpos > tg_x;
-		
-		if (switching) {
-			float angle = switching_dir_l ? -MOVE_ANGLE : MOVE_ANGLE;
-			position += speed * cosf(angle);
-			xpos += speed * sinf(angle);
-		} else {
-			position += speed;
-			switched = false;
-		}
-		
-		float local = fmodf(position - OFFSET_SWITCH, SWITCH_DIST);
-		if (local < 0) local += SWITCH_DIST;
-		int switch_index = (int)floorf((position - OFFSET_SWITCH) / SWITCH_DIST);
-		
-		if (!switched &&
-		switch_index >= 0 &&
-		switch_index < tracks[track].size() &&
-		fabsf(local) < speed)
-		{
-			switched = true;
-			
-			position = OFFSET_SWITCH + switch_index * SWITCH_DIST;
-			xpos = OFFSET_TRACK + track * TRACK_DIST;
-			
-			switch (tracks[track][switch_index].dir) {
-				case LEFT:
-					track--; 
-					break;
-				case RIGHT:
-					track++; 
-					break;
-				default:
-					break;
+		if (delay <= 0.0f) {
+			float prev_position = position;
+
+			int tg_x = OFFSET_TRACK+track*TRACK_DIST;
+
+			if (abs((xpos - tg_x)) < 2.0f) xpos = tg_x;
+
+			switching = xpos != tg_x;
+			switching_dir_l = xpos > tg_x;
+
+			if (switching) {
+				float angle = switching_dir_l ? -MOVE_ANGLE : MOVE_ANGLE;
+				position += speed * cosf(angle);
+				xpos += speed * sinf(angle);
+			} else {
+				position += speed;
+				switched = false;
 			}
+
+			// Check if current switch is diffrent from prev switch
+			int prev_index = (int)floorf((prev_position - OFFSET_SWITCH) / SWITCH_DIST);
+			int curr_index = (int)floorf((position - OFFSET_SWITCH) / SWITCH_DIST);
+
+			if (!switched &&
+					curr_index >= 0 &&
+					curr_index < (int)tracks[track].size() &&
+					curr_index > prev_index)
+			{
+				switched = true;
+
+				position = OFFSET_SWITCH + curr_index * SWITCH_DIST;
+				xpos = OFFSET_TRACK + track * TRACK_DIST;
+
+				switch (tracks[track][curr_index].dir) {
+					case LEFT:
+						track--; 
+						break;
+					case RIGHT:
+						track++; 
+						break;
+					default:
+						break;
+				}
+			}
+		} else {
+			delay -= GetFrameTime();
 		}
 
 	};
-	Train(int tr, int dtr){
+	Train(int tr, int dtr, float del){
 		track = tr;
 		dest_track = dtr;
-		position = -25;
+		delay = del;
+		position = -5-train_tex.height;
 		xpos = OFFSET_TRACK+tr*TRACK_DIST; 
 	}
 };
@@ -186,13 +194,18 @@ class {
 		if (IsKeyPressed(KEY_J)) if (index_x > 0) {dir = LEFT; s = true;}
 		if (IsKeyPressed(KEY_K)) {dir = STRAGHT; s = true;}
 		if (IsKeyPressed(KEY_L)) if (index_x < track_count - 1) {dir = RIGHT; s = true;}
+
+		if (IsKeyPressed(KEY_SPACE)) { // Reset switches
+			for (int i = 0; i < track_count; i++) for (int j = 0; j < switches; j++) tracks[i][j].dir = STRAGHT; 
+			PlaySound(switch_sound);
+		}
 		
 		if (s) PlaySound(switch_sound);
 	};
 	void Draw() {
 		float offset = sin(GetTime()*3) * 3;
-		DrawTexture(arrow_tex,   dp_x-arrow_tex.width-15-offset, dp_y-15, GRAY);
-		DrawTextureEx(arrow_tex,{dp_x+arrow_tex.width+15+offset, dp_y+arrow_tex.height-15},180.0f,1.0f,GRAY);
+		DrawTexture(arrow_tex,   dp_x-arrow_tex.width-15-offset, dp_y-15, WHITE);
+		DrawTextureEx(arrow_tex,{dp_x+arrow_tex.width+15+offset, dp_y+arrow_tex.height-15},180.0f,1.0f,WHITE);
 	};
 
 } cursor;
@@ -232,6 +245,18 @@ void DrawTracks(){
 			}
 		}
 	}
+
+	int start_y = OFFSET_SWITCH + switches * SWITCH_DIST;
+	int tiles_below = (GetScreenHeight() - start_y) / track_tex.height + 1;
+
+	for (int track = 0; track < track_count; track++) {
+		int x = OFFSET_TRACK + track * TRACK_DIST - track_tex.width / 2;
+
+		for (int t = 0; t < tiles_below; t++) {
+			int y = start_y + t * track_tex.height - 20;
+			DrawTexture(track_tex, x, y, WHITE);
+		}
+	}
 }
 
 void CalculateSizeConstants()
@@ -242,8 +267,14 @@ void CalculateSizeConstants()
 	OFFSET_SWITCH = (GetScreenHeight() - total_switches_height) / 2;
 }
 
-void AddTrain(int track, int end_track) {
-	trains.push_back(Train(track,end_track));
+void SpawnWave() {
+	int t = 1 + score / 5;
+	if (t > track_count) t = track_count;
+	for (int i = 0; i < t; i++) {
+		int track = rand()%track_count;
+		int end_track = rand()%track_count;
+		trains.push_back(Train(track,end_track,(float)i*1.7f));
+	}
 }
 
 void WriteHighscore() {
@@ -263,7 +294,7 @@ void InitGame() {
 	speed = 2.0f;
 	game_over = false;
 	trains.clear();
-	trains.push_back(Train(rand()%4, rand()%4));
+	SpawnWave();
 	ReadHighscore();
 }
 
@@ -286,14 +317,15 @@ void Update() {
 			if (t.position > GetScreenHeight() - 60) {
 				if (t.track == t.dest_track) {
 					score++;
-					if (!(score%5)) speed+= 0.25f;
+					if (!(score%2) && speed < 4.0f) speed += 0.2f;
 				}
 				else {
 					mistakes++; 
 					if (mistakes >= 3) LoseGame();
 				}
 				trains.erase(trains.begin()+i);
-				AddTrain(rand()%track_count, rand()%track_count);
+				if (trains.size() == 0)
+						SpawnWave();
 			} else {
 				i++;
 			}
@@ -306,7 +338,7 @@ void Draw() {
 
     BeginDrawing();
 		
-		ClearBackground(RAYWHITE);
+		ClearBackground((Color){143,151,74,255});
 
 		DrawTracks();
 
@@ -327,11 +359,11 @@ void Draw() {
 			DrawText("x", 20+i*30, 58, 36, RED);
 
 		if (game_over) {
-			DrawText("GAME OVER", 50,180, 20, GRAY);
-			DrawText("Press 'r' to restart", 30,200, 20, GRAY);
+			DrawText("GAME OVER", 50,180, 20, BLACK);
+			DrawText("Press 'r' to restart", 30,200, 20, BLACK);
 			if (IsKeyDown(KEY_R)) InitGame();
 		} else if (paused) {
-			DrawText("PAUSED", 50,180, 20, GRAY);
+			DrawText("PAUSED", 50,180, 20, BLACK);
 		}
 
 	EndDrawing();
